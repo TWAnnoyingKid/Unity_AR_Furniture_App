@@ -8,7 +8,7 @@ public class StartSceneController : MonoBehaviour
 
     public void OnClickEnterApp()
     {
-        SceneManager.LoadScene("AR Main Scene"); //¤Á´«¨ì¥D¿ï³æ
+        SceneManager.LoadScene("AR Main Scene"); //ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Dï¿½ï¿½ï¿½
     }
 }
 

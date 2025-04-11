@@ -583,7 +583,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.1
   far clip plane: 1000
   field of view: 60
   orthographic: 0
@@ -954,7 +954,7 @@ Camera:
     width: 1
     height: 1
   near clip plane: 0.1
-  far clip plane: 20
+  far clip plane: 30
   field of view: 60
   orthographic: 0
   orthographic size: 5
@@ -1029,7 +1029,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 428eb62726fd471a8ae41b9d299b2c1f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _targetFrameRate: 10
+  _targetFrameRate: 20
 --- !u!114 &179880024
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1042,7 +1042,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 11aa8f461d05f45f68d7b81ed08f1f9e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _targetFrameRate: 10
+  _targetFrameRate: 20
   _occlusionTechnique: 0
   _optimalOcclusionDistanceMode: 0
   _principalOccludee: {fileID: 0}
@@ -1071,7 +1071,7 @@ MonoBehaviour:
   m_HumanSegmentationStencilMode: 1
   m_HumanSegmentationDepthMode: 1
   m_EnvironmentDepthMode: 3
-  m_EnvironmentDepthTemporalSmoothing: 1
+  m_EnvironmentDepthTemporalSmoothing: 0
   m_OcclusionPreferenceMode: 0
 --- !u!1 &186394059
 GameObject:
@@ -2366,7 +2366,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_Material: {fileID: 1842294747}
-  m_Color: {r: 0, g: 0, b: 0, a: 0.35686275}
+  m_Color: {r: 0, g: 0, b: 0, a: 0.6}
   m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
@@ -3072,16 +3072,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 86b456713bd4d4c31b3cb04c67d82381, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _targetFrameRate: 10
+  _targetFrameRate: 20
   _fuseKeyframesOnly: 1
-  _maximumIntegrationDistance: 12
+  _maximumIntegrationDistance: 30
   _voxelSize: 0.04
   _enableDistanceBasedVolumetricCleanup: 1
   _meshBlockSize: 1.4
   _meshCullingDistance: 0
   _enableMeshDecimation: 1
-  _isMeshFilteringEnabled: 0
-  _semanticSegmentationManager: {fileID: 0}
+  _isMeshFilteringEnabled: 1
+  _semanticSegmentationManager: {fileID: 179880023}
   _isFilteringAllowListEnabled: 0
   _allowList: []
   _isFilteringBlockListEnabled: 0
@@ -3150,7 +3150,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_AttemptUpdate: 1
-  m_MatchFrameRate: 1
+  m_MatchFrameRate: 0
   m_TrackingMode: 2
 --- !u!4 &1315502739
 Transform:
@@ -3225,7 +3225,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: eb311f94a72566b42a8170f29d6c84ea, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  targetFrameRate: 120
+  targetFrameRate: 60
   disableVSync: 1
   highPerformanceMode: 1
 --- !u!1001 &1334374026
@@ -4176,6 +4176,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents:
     - {fileID: 5724377154482696380, guid: b3573466b7564b24181ca70bceb987b5, type: 3}
+    - {fileID: 1234567890123456789, guid: b3573466b7564b24181ca70bceb987b5, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:
