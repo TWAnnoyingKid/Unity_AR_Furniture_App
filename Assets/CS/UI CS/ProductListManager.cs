@@ -167,43 +167,29 @@ public class ProductListManager : MonoBehaviour
         StartCoroutine(DownloadProductJson());
     }
 
-    // 非同步下載產品 JSON 資料
-    IEnumerator DownloadProductJson()
-    {
-        string jsonUrl = "https://raw.githubusercontent.com/TWAnnoyingKid/AR_Furniture_App/main/product.json";
-        UnityWebRequest www = UnityWebRequest.Get(jsonUrl);
-        yield return www.SendWebRequest();
-
-        if (www.result != UnityWebRequest.Result.Success)
-        {
-            Debug.LogError("下載 JSON 資料失敗: " + www.error);
-        }
-        else
-        {
-            string jsonText = www.downloadHandler.text;
-            // 解析 JSON 並填入產品資料字典
-            ParseJsonProducts(jsonText);
-
-            // 等待 1 秒，確保圖片下載程序有足夠時間執行
-            yield return new WaitForSeconds(1f);
-
-            // 建立各分類的產品 UI 項目
-            CreateProductItems("chair", chairContent);
-            CreateProductItems("desk", deskContent);
-            CreateProductItems("drawer", drawerContent);
-            CreateProductItems("sofa", sofaContent);
-            if (loadingPanel != null)
-            {
-                loadingPanel.SetActive(false);
-                UIbtn.interactable = true;
-            }
-        }
-    }
-
     // 解析 JSON 產品資料，並將資料存入 allProducts 字典中
     void ParseJsonProducts(string jsonText)
     {
         JSONProduct[] products = JsonHelper.FromJson<JSONProduct>(jsonText);
+        
+        // 初始化產品計數器
+        Dictionary<string, int> productCounters = new Dictionary<string, int>()
+        {
+            { "chair", 0 },
+            { "desk", 0 },
+            { "drawer", 0 },
+            { "sofa", 0 }
+        };
+        
+        // 初始化圖片下載計數器
+        Dictionary<string, int> downloadedImageCounters = new Dictionary<string, int>()
+        {
+            { "chair", 0 },
+            { "desk", 0 },
+            { "drawer", 0 },
+            { "sofa", 0 }
+        };
+        
         foreach (var jp in products)
         {
             ProductData pd = new ProductData();
@@ -215,42 +201,201 @@ public class ProductListManager : MonoBehaviour
             pd.sizeOptions = (jp.size_options != null && jp.size_options.Length > 0) ? jp.size_options[0] : "";
             pd.from = false;
 
-            // 非同步下載產品對應的所有圖片
-            StartCoroutine(DownloadImagesForProduct(jp.images, pd));
-
             // 根據 JSON 中的 category 屬性，加入相對應的分類列表（轉換為小寫）
             string category = jp.category.ToLower();
             if (!allProducts.ContainsKey(category))
             {
                 allProducts[category] = new List<ProductData>();
+                productCounters[category] = 0;
+                downloadedImageCounters[category] = 0;
             }
+            
+            // 遞增該分類的產品計數器
+            productCounters[category]++;
+            
+            // 將產品資料加入該分類的列表
             allProducts[category].Add(pd);
+            
+            // 非同步下載產品對應的所有圖片
+            StartCoroutine(DownloadImagesForProduct(jp.images, pd, category, productCounters, downloadedImageCounters));
         }
     }
 
     // 非同步下載產品圖片，並將下載到的圖片轉換為 Sprite
-    IEnumerator DownloadImagesForProduct(string[] imageUrls, ProductData pd)
+    IEnumerator DownloadImagesForProduct(string[] imageUrls, ProductData pd, string category, 
+                                         Dictionary<string, int> productCounters, 
+                                         Dictionary<string, int> downloadedImageCounters)
     {
-        foreach (string imageUrl in imageUrls)
+        if (imageUrls == null || imageUrls.Length == 0)
         {
-            UnityWebRequest request = UnityWebRequestTexture.GetTexture(imageUrl);
+            // 如果沒有圖片 URL，增加計數器並檢查是否完成
+            downloadedImageCounters[category]++;
+            CheckCategoryCompletion(category, productCounters, downloadedImageCounters);
+            yield break;
+        }
+
+        // 先下載第一張圖片作為主要圖片
+        string mainImageUrl = imageUrls[0];
+        UnityWebRequest mainRequest = UnityWebRequestTexture.GetTexture(mainImageUrl);
+        yield return mainRequest.SendWebRequest();
+
+        bool mainImageDownloaded = false;
+        
+        if (mainRequest.result == UnityWebRequest.Result.Success)
+        {
+            Texture2D texture = DownloadHandlerTexture.GetContent(mainRequest);
+            Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+            
+            pd.productImage = sprite;
+            pd.allSprites.Add(sprite);
+            mainImageDownloaded = true;
+        }
+        else
+        {
+            Debug.LogWarning("下載主要圖片失敗: " + mainImageUrl);
+            
+            // 如果第一張下載失敗，嘗試其他圖片
+            for (int i = 1; i < imageUrls.Length; i++)
+            {
+                UnityWebRequest backupRequest = UnityWebRequestTexture.GetTexture(imageUrls[i]);
+                yield return backupRequest.SendWebRequest();
+                
+                if (backupRequest.result == UnityWebRequest.Result.Success)
+                {
+                    Texture2D backupTexture = DownloadHandlerTexture.GetContent(backupRequest);
+                    Sprite backupSprite = Sprite.Create(backupTexture, new Rect(0, 0, backupTexture.width, backupTexture.height), new Vector2(0.5f, 0.5f));
+                    
+                    pd.productImage = backupSprite;
+                    pd.allSprites.Add(backupSprite);
+                    mainImageDownloaded = true;
+                    break;
+                }
+            }
+        }
+        
+        // 如果所有主要圖片下載都失敗，可以使用預設圖片或留空
+        if (!mainImageDownloaded)
+        {
+            Debug.LogWarning("所有圖片下載失敗，產品: " + pd.productName);
+        }
+        
+        // 在背景下載其餘圖片以供詳細資訊使用（如果需要）
+        StartCoroutine(DownloadRemainingImages(imageUrls, pd));
+        
+        // 主要圖片已處理，更新計數並檢查類別完成狀態
+        downloadedImageCounters[category]++;
+        CheckCategoryCompletion(category, productCounters, downloadedImageCounters);
+    }
+
+    // 在背景下載剩餘的圖片
+    IEnumerator DownloadRemainingImages(string[] imageUrls, ProductData pd)
+    {
+        // 從第二張圖片開始，因為第一張已經下載作為主圖
+        for (int i = 1; i < imageUrls.Length; i++)
+        {
+            // 檢查圖片是否已在主圖下載過程中加入
+            if (pd.allSprites.Count > i)
+                continue;
+            
+            UnityWebRequest request = UnityWebRequestTexture.GetTexture(imageUrls[i]);
             yield return request.SendWebRequest();
 
             if (request.result == UnityWebRequest.Result.Success)
             {
                 Texture2D texture = DownloadHandlerTexture.GetContent(request);
                 Sprite sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-                // 若尚未指定主要圖片，則將第一張下載的圖片設為主要圖片
-                if (pd.productImage == null)
-                {
-                    pd.productImage = sprite;
-                }
                 pd.allSprites.Add(sprite);
             }
             else
             {
-                Debug.LogWarning("下載圖片失敗: " + imageUrl);
+                Debug.LogWarning("下載額外圖片失敗: " + imageUrls[i]);
             }
+        }
+    }
+
+    // 檢查分類是否所有產品的主要圖片都已下載完成
+    private void CheckCategoryCompletion(string category, Dictionary<string, int> productCounters, Dictionary<string, int> downloadedImageCounters)
+    {
+        // 檢查該分類是否所有產品的主要圖片都已下載完成
+        if (downloadedImageCounters[category] >= productCounters[category])
+        {
+            // 該分類所有產品的主要圖片都已下載完成，建立該分類的 UI
+            Transform contentTransform = null;
+            
+            switch (category)
+            {
+                case "chair":
+                    contentTransform = chairContent;
+                    break;
+                case "desk":
+                    contentTransform = deskContent;
+                    break;
+                case "drawer":
+                    contentTransform = drawerContent;
+                    break;
+                case "sofa":
+                    contentTransform = sofaContent;
+                    break;
+            }
+            
+            if (contentTransform != null)
+            {
+                CreateProductItems(category, contentTransform);
+            }
+            
+            // 檢查所有分類是否都已完成
+            bool allCategoriesLoaded = true;
+            foreach (var kvp in downloadedImageCounters)
+            {
+                if (productCounters.ContainsKey(kvp.Key) && kvp.Value < productCounters[kvp.Key])
+                {
+                    allCategoriesLoaded = false;
+                    break;
+                }
+            }
+            
+            // 如果所有分類都已完成，隱藏載入面板
+            if (allCategoriesLoaded && loadingPanel != null)
+            {
+                loadingPanel.SetActive(false);
+                UIbtn.interactable = true;
+            }
+        }
+    }
+
+    // 非同步下載產品 JSON 資料
+    IEnumerator DownloadProductJson()
+    {
+        string jsonUrl = "https://raw.githubusercontent.com/TWAnnoyingKid/AR_Furniture_App/main/product.json";
+        UnityWebRequest www = UnityWebRequest.Get(jsonUrl);
+        yield return www.SendWebRequest();
+
+        if (www.result != UnityWebRequest.Result.Success)
+        {
+            Debug.LogError("下載 JSON 資料失敗: " + www.error);
+            if (loadingPanel != null)
+            {
+                loadingPanel.SetActive(false);
+                UIbtn.interactable = true;
+            }
+        }
+        else
+        {
+            string jsonText = www.downloadHandler.text;
+            // 解析 JSON 並填入產品資料字典，不再直接呼叫建立 UI
+            ParseJsonProducts(jsonText);
+            
+            // 移除此處的等待和建立 UI 的呼叫，因為已在圖片下載完成後處理
+            // yield return new WaitForSeconds(1f);
+            // CreateProductItems("chair", chairContent);
+            // CreateProductItems("desk", deskContent);
+            // CreateProductItems("drawer", drawerContent);
+            // CreateProductItems("sofa", sofaContent);
+            // if (loadingPanel != null)
+            // {
+            //     loadingPanel.SetActive(false);
+            //     UIbtn.interactable = true;
+            // }
         }
     }
 
