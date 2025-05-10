@@ -581,84 +581,6 @@ namespace ARFurniture
             }
         }
 
-        Mesh InflateMesh(Mesh originalMesh, float inflateAmount)
-        {
-            Mesh inflatedMesh = Instantiate(originalMesh);
-            Vector3[] vertices = inflatedMesh.vertices;
-            Vector3[] normals = inflatedMesh.normals;
-            for (int i = 0; i < vertices.Length; i++)
-            {
-                vertices[i] += normals[i] * inflateAmount;
-            }
-            inflatedMesh.vertices = vertices;
-            inflatedMesh.RecalculateBounds();
-            inflatedMesh.RecalculateNormals();
-            return inflatedMesh;
-        }
-        void AddCompoundCollider(GameObject parentObject, float inflateAmount)
-        {
-            // 1. 為所有 MeshFilter 添加 convex MeshCollider
-            MeshFilter[] meshFilters = parentObject.GetComponentsInChildren<MeshFilter>();
-            foreach (MeshFilter mf in meshFilters)
-            {
-                if (mf.sharedMesh != null)
-                {
-                    MeshCollider mc = mf.gameObject.AddComponent<MeshCollider>();
-                    if (inflateAmount > 0)
-                    {
-                        Mesh inflatedMesh = InflateMesh(mf.sharedMesh, inflateAmount);
-                        mc.sharedMesh = inflatedMesh;
-                    }
-                    else
-                    {
-                        mc.sharedMesh = mf.sharedMesh;
-                    }
-                    mc.convex = true;
-                }
-            }
-            
-            // 2. 計算模型整體 Bounds
-            Renderer[] renderers = parentObject.GetComponentsInChildren<Renderer>();
-            if (renderers.Length == 0) return;
-            Bounds totalBounds = renderers[0].bounds;
-            for (int i = 1; i < renderers.Length; i++)
-            {
-                totalBounds.Encapsulate(renderers[i].bounds);
-            }
-            
-            // 3. 在模型根物件上添加 BoxCollider模擬底部平坦
-            BoxCollider box = parentObject.GetComponent<BoxCollider>();
-            if (box == null)
-            {
-                box = parentObject.AddComponent<BoxCollider>();
-            }
-            
-            // 設定 BoxCollider 的中心與尺寸：
-            // 將 BoxCollider 放在模型底部附近，並且高度設定較小
-            Vector3 bottomCenter = totalBounds.center;
-            bottomCenter.y = totalBounds.min.y + 0.05f;  // 這裡 0.05f 可根據模型調整
-            // 轉換到本地座標
-            box.center = parentObject.transform.InverseTransformPoint(bottomCenter);
-            
-            // 設定尺寸：使用模型總尺寸，但將高度設為較小值（例如 0.1f 米）
-            Vector3 size = totalBounds.size;
-            size.y = 0.1f; // 根據需要調整高度
-            box.size = parentObject.transform.InverseTransformVector(size);
-        }
-
-        void AddColliderToModel(GameObject parentObject, float inflateAmount, bool convex = false)
-        {
-            foreach (var mf in parentObject.GetComponentsInChildren<MeshFilter>())
-            {
-                if (mf.sharedMesh != null)
-                {
-                    MeshCollider mc = mf.gameObject.AddComponent<MeshCollider>();
-                    Mesh inflatedMesh = InflateMesh(mf.sharedMesh, inflateAmount);
-                    mc.sharedMesh = inflatedMesh;
-                    mc.convex = convex;
-                }
-            }
-        }
         void AddPhysicsProperties(GameObject obj)
         {
             // 檢查是否已存在 Rigidbody
@@ -1532,7 +1454,15 @@ namespace ARFurniture
                     {
                         EnableModelShadows(parentObject);
                         Vector3 desiredDimensions = GetDesiredDimensions();
-                        AddColliderToModel(parentObject, 0f);
+                        
+                        // 添加ModelCollider組件並顯式調用生成方法
+                        ARFurniture.ModelCollider modelCollider = parentObject.AddComponent<ARFurniture.ModelCollider>();
+                        modelCollider.voxelResolution = 100; // 設置合適的解析度
+                        modelCollider.inflateAmount = 0f; // 設置膨脹量
+                        modelCollider.debugShowColliders = false; // 是否顯示碰撞體視覺效果
+                        modelCollider.autoGenerateColliders = false; // 關閉自動生成，改為手動調用
+                        modelCollider.GenerateColliders(); // 顯式調用生成方法
+                        
                         StartCoroutine(AdjustModelPosition(parentObject, desiredDimensions));
                     }
                 }
@@ -1544,32 +1474,6 @@ namespace ARFurniture
             catch (Exception e)
             {
                 Debug.LogError($"處理模型數據時發生錯誤: {e.Message}");
-            }
-        }
-
-        // 修改 LoadModel 方法
-        public async void LoadModel(string githubModelURL, ProductData productData)
-        {
-            if (loading)
-            {
-                Debug.Log("正在加載中，請稍候...");
-                return;
-            }
-
-            selectedProductData = productData;
-            loading = true;
-
-            if (loadingPanel != null)
-            {
-                loadingPanel.SetActive(true);
-            }
-
-            await LoadModelFromUrl(githubModelURL, JsonConvert.SerializeObject(productData));
-
-            if (loadingPanel != null)
-            {
-                loading = false;
-                loadingPanel.SetActive(false);
             }
         }
 
@@ -1635,6 +1539,31 @@ namespace ARFurniture
             foreach (Outline outline in model.GetComponentsInChildren<Outline>())
             {
                 Destroy(outline);
+            }
+        }
+
+        public async void LoadModel(string githubModelURL, ProductData productData)
+        {
+            if (loading)
+            {
+                Debug.Log("正在加載中，請稍候...");
+                return;
+            }
+
+            selectedProductData = productData;
+            loading = true;
+
+            if (loadingPanel != null)
+            {
+                loadingPanel.SetActive(true);
+            }
+
+            await LoadModelFromUrl(githubModelURL, JsonConvert.SerializeObject(productData));
+
+            if (loadingPanel != null)
+            {
+                loading = false;
+                loadingPanel.SetActive(false);
             }
         }
     }
